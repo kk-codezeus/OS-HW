@@ -61,8 +61,9 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
+    //printf("' ' case\n");
     char Path[20] = "/bin/";
-    execl(strcat(Path,ecmd->argv[0]),ecmd->argv[0],NULL);
+    execv(strcat(Path,ecmd->argv[0]),ecmd->argv);
     fprintf(stderr, "exec not implemented\n");
     // Your code here ...
     break;
@@ -71,6 +72,16 @@ runcmd(struct cmd *cmd)
   case '<':
     rcmd = (struct redircmd*)cmd;
     // Your code here ...
+    //printf("redir case\n");
+    if(rcmd->type == 60)	//Redirecting input
+    {
+	    close(0);
+	    if((rcmd->fd = open(rcmd->file,rcmd->mode)) < 0)
+	    {
+		    perror("File not opened for write... exiting\n");
+		    exit(0);
+	    }
+    }
     if(rcmd->type == 62)	//Redirecting stdout
     {
 	    close(1);
@@ -80,10 +91,10 @@ runcmd(struct cmd *cmd)
 		    exit(0);
 	    }
 	    //char* line = rcmd->cmd->argv[1];
-	    close(rcmd->fd);
+	    
 
     }
-    //runcmd(rcmd->cmd);
+    runcmd(rcmd->cmd);
     fprintf(stderr, "redir not implemented\n");
     break;
 
