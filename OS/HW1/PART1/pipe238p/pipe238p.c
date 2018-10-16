@@ -35,16 +35,44 @@ main(void)
 		perror("Second pipe not created.... exiting\n");
 		exit(0);
 	}
-	int pid_grep, pid_wc;
-	if((pid_grep = fork()) < 0)//Forking for grep process and error checking
+	int pid_ls, pid_grep, pid_wc;
+	if((pid_ls = fork()) < 0)	// Foring for ls command(1st command) and error checking fork()
+	{
+		perror("Fork for ls not working......exiting \n");
+		exit(0);
+	}
+	if(pid_ls == 0)			// ls child process
+	{
+		// closing unwanted file descriptors for the child process ls	
+		close(pipe_index[pipe1_r]);
+		close(pipe_index[pipe2_r]);
+		close(pipe_index[pipe2_w]);
+
+		if(dup2(pipe_index[pipe1_w],1) < 0) //dup2 fail-safe
+		{
+			perror("dup2 inside ls not working.... exiting\n");
+			exit(0);
+		}
+		// closing write descriptor of the pipe1 inside ls child
+		close(pipe_index[pipe1_w]);
+		execvp(argv_ls[0],argv_ls);
+		perror("execvp inside ls failed.... exiting\n");		// Error incase exec doesn't work
+		exit(0);
+	}
+	else
+	{
+		close(pipe_index[pipe1_w]);	// closing the write descriptor for pipe1 for the parent process and the future
+	}
+
+	if((pid_grep = fork()) < 0)//Forking for grep process and error checking fork
 	{
 		perror("Fork for grep process failed..... exiting\n");
 		exit(0);
 	}
 	if(pid_grep == 0)			// Grep child process.
 	{
-		close(pipe_index[pipe1_w]);
-		close(pipe_index[pipe2_r]);
+		//close(pipe_index[pipe1_w]);  // already closed the 1st pipe's write descriptor in the parent before calling fork...
+		close(pipe_index[pipe2_r]);	// not needed here closing it
 		// Redirecting stdin of "grep" process to pipe1 read and error checking dup2
 		if(dup2(pipe_index[pipe1_r],0) < 0)
 		{
@@ -62,21 +90,21 @@ main(void)
 		close(pipe_index[pipe2_w]);
 
 		execvp(argv_grep[0],argv_grep);
-		perror("grep execv failed.. shouldn't come back here\n...");
+		perror("grep execv failed.. shouldn't come back here.....exiting\n");
+		exit(0);
 	}
 	else
+	{	// closing the pipe1 read and pipe2 write in parent process for the future
+		close(pipe_index[pipe1_r]);
+		close(pipe_index[pipe2_w]);
+	}
+	if((pid_wc = fork()) < 0) 		// forking check for wc process
 	{
-		pid_wc = fork(); //Forking for wc process and error checking
-		if(pid_wc < 0)
-		{
-			perror("Fork for wc process failed.....exiting\n");
-			exit(0);
-		}
-		if(pid_wc == 0)		// WC child  process
-		{
-			close(pipe_index[pipe1_r]);
-			close(pipe_index[pipe1_w]);
-			close(pipe_index[pipe2_w]);
+		perror("Fork for wc not working....exiting\n");
+		exit(0);
+	}
+	if(pid_wc == 0)
+	{
 			
 			//Redirecting stdin of "wc" process to pipe2_read and error checking dup2
 			if(dup2(pipe_index[pipe2_r],0) < 0)
@@ -89,33 +117,12 @@ main(void)
 			close(pipe_index[pipe2_r]);
 
 			execvp(argv_wc[0],argv_wc);
-			perror("Wc failed...\n");
+			perror("Wc failed...exiting\n");
+			exit(0);
 
-		}
-		else 			//Parent process "ls"
-		{
-			close(pipe_index[pipe1_r]);
-			close(pipe_index[pipe2_r]);
-			close(pipe_index[pipe2_w]);
-			//Redirecting stdout of "ls" process to pipe1_write and error checking dup2
-			
-			if(dup2(pipe_index[pipe1_w],1) < 0)
-			{
-				perror("dup2 for ls process to pipe1 write failed...exiting\n");
-				exit(0);
-			}	
-
-			//Closing both pipes read and write
-			close(pipe_index[pipe1_w]);
-
-			execvp(argv_ls[0],argv_ls);
-			perror("ls failed...\n");
-		}
 	}
-	
-			close(pipe_index[pipe1_r]);
-			close(pipe_index[pipe1_w]);
-			close(pipe_index[pipe2_r]);
-			close(pipe_index[pipe2_w]);
+	wait(NULL);
+	wait(NULL);
+	wait(NULL);	
 	exit(0);
 }
