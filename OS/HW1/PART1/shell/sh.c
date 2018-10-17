@@ -45,6 +45,7 @@ void
 runcmd(struct cmd *cmd)
 {
   int p[2], r;
+  int pid;
   struct execcmd *ecmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
@@ -61,46 +62,134 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
-    //printf("' ' case\n");
-    char Path[20] = "/bin/";
-    execv(strcat(Path,ecmd->argv[0]),ecmd->argv);
-    fprintf(stderr, "exec not implemented\n");
+    //char Path[20] = "/bin/";
+   // execv(strcat(Path,ecmd->argv[0]),ecmd->argv);
+    //fprintf(stderr, "Not found in /bin/ trying in /usr/bin\n");
+    //char userPath[30] = "/usr/bin/";
+    execvp(ecmd->argv[0],ecmd->argv);
+    fprintf(stderr, "Exec failed...\n");
     // Your code here ...
     break;
 
   case '>':
+	rcmd = (struct redircmd*)cmd;            
+	close(1);					// Closing the stdout to point it to the write file
+	open(rcmd->file,rcmd->mode,0777);		// Pointing the smallest open fd to new file(in this case 1);
+	runcmd(rcmd->cmd);
+
   case '<':
-    rcmd = (struct redircmd*)cmd;
-    // Your code here ...
+
+	rcmd = (struct redircmd*)cmd;
+	close(0);					// Closing the stdin 
+	open(rcmd->file,rcmd->mode);			// Pointing the smallest open fd to new file to read(in this case 0);
+	runcmd(rcmd->cmd);
+   /* // Your code here ...
     //printf("redir case\n");
     if(rcmd->type == 60)	//Redirecting input
     {
-	    close(0);
-	    if((rcmd->fd = open(rcmd->file,rcmd->mode)) < 0)
+
+	    pid = fork();
+	    if(pid < 0)
 	    {
-		    perror("File not opened for write... exiting\n");
+		    perror("Fork for < not working..... exiting\n");
 		    exit(0);
 	    }
+	    if(pid == 0)
+	    {	
+		// printf("Here <\n");
+	    	close(0);              // closing stdin
+	    	//opening lowest fd(here 0) and pointing it to the file to be read
+	    	if((rcmd->fd = open(rcmd->file,rcmd->mode)) < 0)
+	    	{
+		    perror("File not opened for write... exiting\n");
+		    exit(0);
+	    	}
+		runcmd(rcmd->cmd);
+    		fprintf(stderr, "command not executed from <\n....exiting");
+		exit(0);
+	    }
+	    else
+	    {
+		    wait(NULL);
+		    
+	    }
+
     }
-    if(rcmd->type == 62)	//Redirecting stdout
-    {
-	    close(1);
+    if(rcmd->type == 62){	//{Redirecting stdout
+   	 pid = fork();
+   	 if(pid < 0)
+   	 {
+	    perror("Fork for < not working..... exiting\n");
+	    exit(0);
+    	 }
+    	 if(pid == 0)
+   	 {
+		 
+	   // printf("Here >\n");
+	    close(1);           //closing stdout
+	    //opening lowest fd(here 1) and pointing it to the file to create and write
 	    if((rcmd->fd = open(rcmd->file,rcmd->mode,0777)) < 0)
 	    {
 		    perror("File not opened to write\n....exiting");
 		    exit(0);
 	    }
 	    //char* line = rcmd->cmd->argv[1];
-	    
+	    runcmd(rcmd->cmd);
 
-    }
-    runcmd(rcmd->cmd);
-    fprintf(stderr, "redir not implemented\n");
+    		fprintf(stderr, "command not executed from >\n....exiting");
+		exit(0);
+
+    	  }
+	 else
+	 {
+		 wait(NULL);
+	 }
+    }*/	 
     break;
 
   case '|':
     pcmd = (struct pipecmd*)cmd;
-    fprintf(stderr, "pipe not implemented\n");
+    if(pipe(p) < 0)                         // Creating pipe and checking error
+    {
+	    fprintf(stderr,"Not able to start a pipe... exiting\n");
+	    exit(0);
+    }
+    pid = fork();			// Forking to run left command and checking
+    if(pid < 0)
+    {
+	    fprintf(stderr,"Fork for first command not working.. exiting\n");
+	    exit(0);
+    }
+    if(pid == 0)	    		//Child process for left command
+    {
+	    close(p[0]);		//Closing read pipe descriptor for left command
+	    dup2(p[1],1);		//Pointing the child's stdout to pipe's write
+	    close(p[1]);		//Closing the write pipe descriptor for child
+	    runcmd(pcmd->left);
+    }
+    else				//Parent process for right command
+    {
+	    close(p[1]);		//Closing write pipe descriptor for right command
+	    dup2(p[0],0);		// Pointing child's stdin to pipe's read
+	    close(p[0]);		//Closing the read pipe descriptor for child
+	    runcmd(pcmd->right);	    //Closing the pipe's write descriptor for future use
+    }
+    /*pid = fork();
+    if(pid < 0)			// Forking to run right command and error checking fork()
+    {
+	    fprintf(stderr,"Second Fork not working.. exiting\n");
+	    exit(0);
+    }
+    if(pid == 0)	    //Child process for right command
+    {
+	    //close(p[1]);		//No need to close pipe write descriptor as already done in parent
+	    dup2(p[0],0);		//Pointing the right command's stdin to pipe read descriptor
+	    close(p[0]);
+	    runcmd(pcmd->right);
+    }*/
+    				
+
+ /*   fprintf(stderr, "pipe not implemented\n");*/
     // Your code here ...
     break;
   }    
