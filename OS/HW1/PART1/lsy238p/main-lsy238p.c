@@ -11,27 +11,28 @@
 int
 main(int argc, char* argv[])
 {
-	if(argc < 3)
+	/*if(argc < 3)					// if no of args is less than 3, then send error
 	{
 		printf("Less no of args specified exiting ....\n");
 		exit(0);
-	}
+	}*/
+	char * argv_ls[4] = {"ls",">","y",0};
 	int pid = fork();
-	if(pid < 0)
+	if(pid < 0)				// Fork error check
 	{
 		printf("Fork not working\n");
 		exit(0);
 	}
 	if(pid == 0) //Child process
 	{
-		close(1);
-		open(argv[2],O_WRONLY | O_CREAT, 0777);
-		execlp("ls","ls",NULL);
-		printf("Shouldn't come back here otherwise exec not working \n");
+		close(1);					// close the stdout
+		open(argv_ls[2],O_WRONLY | O_CREAT, 0777);		// open the lowest open fd(in this case 1) and point it to 
+		execlp(argv_ls[0],"ls",NULL);				// execute the ls command
+		printf("Shouldn't come back here otherwise exec not working \n");	// in case exec() fails
 	}	
 	if(pid > 0)
 	{
-		pid = wait(NULL);
+		pid = wait(NULL);					// wait for the child process to finish
 	}
 	
 
